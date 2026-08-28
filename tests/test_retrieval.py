@@ -100,6 +100,23 @@ def test_rrf_prefers_chunks_found_by_both_rankers():
     assert fused[0].chunk_id == "both"
 
 
+def test_searcher_requires_at_least_one_channel():
+    with pytest.raises(ValueError, match="At least one retrieval channel"):
+        HybridSearcher(enable_vector=False, enable_bm25=False)
+
+
+def test_disabled_channels_do_not_expose_injected_indexes():
+    searcher = HybridSearcher.__new__(HybridSearcher)
+    searcher.enable_vector = False
+    searcher.enable_bm25 = False
+    searcher._vector_index = object()
+    searcher._bm25_index = object()
+    searcher._bm25_loaded = True
+
+    assert searcher.vector_index is None
+    assert searcher.bm25_index is None
+
+
 def test_lexical_reranker_promotes_literal_overlap():
     items = [
         RetrievedChunk(chunk=make_chunk("a", "Требования к маркировке упаковки"), score=0.05),

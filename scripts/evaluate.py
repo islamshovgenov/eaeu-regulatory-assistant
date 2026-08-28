@@ -39,7 +39,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.config import EVAL_DIR, INN_VOCABULARY_JSON, PROCESSED_DIR, configure_logging
 from app.db.models import SourceTier
+from app.rag.hybrid_search import HybridSearcher
 from app.rag.pipeline import RegulatoryPipeline
+from app.rag.reranker import LexicalOverlapReranker, NoOpReranker
 from app.rag.retriever import RegulatoryRetriever
 from app.regulatory.inn import load_vocabulary
 from app.regulatory.schemas import StatementKind
@@ -48,6 +50,14 @@ logger = configure_logging("scripts.evaluate")
 
 QUESTIONS_CSV = EVAL_DIR / "questions.csv"
 RESULTS_JSON = PROCESSED_DIR / "evaluation_results.json"
+ABLATION_RESULTS_JSON = PROCESSED_DIR / "retrieval_ablation.json"
+
+RETRIEVAL_MODES = (
+    "bm25",
+    "vector",
+    "hybrid",
+    "hybrid-rerank",
+)
 
 _WORD_RE = re.compile(r"[А-Яа-яЁёA-Za-z0-9]{4,}")
 
@@ -166,6 +176,45 @@ def evaluate_retrieval(
     return metrics, outcomes
 
 
+def build_retriever(mode: str) -> RegulatoryRetriever:
+    """Build one explicit retrieval configuration for a fair ablation run."""
+    if mode not in RETRIEVAL_MODES:
+        raise ValueError(f"Unknown retrieval mode: {mode}")
+
+    searcher = HybridSearcher(
+        enable_vector=mode != "bm25",
+        enable_bm25=mode != "vector",
+    )
+    reranker = (
+        LexicalOverlapReranker()
+        if mode == "hybrid-rerank"
+        else NoOpReranker()
+    )
+    return RegulatoryRetriever(searcher=searcher, reranker=reranker)
+
+
+def _outcomes_report(outcomes: list[QuestionOutcome]) -> list[dict[str, object]]:
+    return [
+        {
+            "question_id": outcome.question_id,
+            "category": outcome.category,
+            "first_hit_rank": outcome.first_hit_rank,
+            "hits": outcome.ranks,
+            "retrieved_documents": outcome.retrieved_documents[:5],
+        }
+        for outcome in outcomes
+    ]
+
+
+def _print_metrics(mode: str, metrics: dict[str, object]) -> None:
+    print(f"\n=== RETRIEVAL METRICS: {mode} ===")
+    print(f"  Вопросов:              {metrics['questions']}")
+    print(f"  Recall@5:              {metrics['recall_at_5']}")
+    print(f"  Recall@10:             {metrics['recall_at_10']}")
+    print(f"  MRR:                   {metrics['mrr']}")
+    print(f"  Без релевантных:       {metrics['questions_with_no_hit']}")
+
+
 def evaluate_answers(
     questions: list[EvalQuestion], pipeline: RegulatoryPipeline, limit: int | None
 ) -> dict[str, object]:
@@ -223,7 +272,21 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--with-answers", action="store_true", help="также оценить ответы LLM")
     parser.add_argument("--limit", type=int, default=None, help="ограничить число вопросов")
     parser.add_argument("--top-k", type=int, default=10)
+    parser.add_argument(
+        "--retrieval-mode",
+        choices=RETRIEVAL_MODES,
+        default="hybrid-rerank",
+        help="явная конфигурация retrieval для одиночного прогона",
+    )
+    parser.add_argument(
+        "--all-modes",
+        action="store_true",
+        help="последовательно прогнать BM25, Vector, Hybrid и Hybrid + rerank",
+    )
     args = parser.parse_args(argv)
+
+    if args.all_modes and args.with_answers:
+        parser.error("--with-answers нельзя совмещать с --all-modes")
 
     load_vocabulary(INN_VOCABULARY_JSON)
     questions = load_questions()
@@ -231,53 +294,84 @@ def main(argv: list[str] | None = None) -> int:
         questions = questions[: args.limit]
     print(f"Загружено вопросов: {len(questions)}")
 
-    retriever = RegulatoryRetriever()
-    if not retriever.is_ready():
-        print("Индексы не построены. Запустите: python _архив_сборки_базы/ingestion/run_ingestion.py")
-        return 1
+    modes = RETRIEVAL_MODES if args.all_modes else (args.retrieval_mode,)
+    mode_reports: dict[str, dict[str, object]] = {}
+    active_retriever: RegulatoryRetriever | None = None
 
-    metrics, outcomes = evaluate_retrieval(questions, retriever, args.top_k)
+    for mode in modes:
+        print(f"\nЗапуск режима: {mode}")
+        retriever = build_retriever(mode)
+        try:
+            if not retriever.is_ready():
+                print(
+                    "Индексы не построены. Запустите: "
+                    "python _архив_сборки_базы/ingestion/run_ingestion.py"
+                )
+                return 1
+            metrics, outcomes = evaluate_retrieval(questions, retriever, args.top_k)
+            mode_reports[mode] = {
+                "retrieval": metrics,
+                "per_question": _outcomes_report(outcomes),
+                "reranker": retriever.reranker.name,
+            }
+            _print_metrics(mode, metrics)
+            if not args.all_modes:
+                active_retriever = retriever
+        finally:
+            if args.all_modes:
+                retriever.searcher.close()
+
+    disclaimer = (
+        "Ожидаемые документы размечены автоматически "
+        "(needs_expert_validation = true). Метрики отражают поведение поиска, "
+        "а не корректность регуляторного вывода. Требуется экспертная оценка."
+    )
+
+    if args.all_modes:
+        report: dict[str, object] = {
+            "generated_at": datetime.now().isoformat(timespec="seconds"),
+            "questions": len(questions),
+            "top_k": args.top_k,
+            "modes": mode_reports,
+            "disclaimer": disclaimer,
+        }
+        ABLATION_RESULTS_JSON.parent.mkdir(parents=True, exist_ok=True)
+        ABLATION_RESULTS_JSON.write_text(
+            json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+
+        print("\n=== ABLATION SUMMARY ===")
+        print(f"  {'Режим':<24} {'Recall@5':>9} {'Recall@10':>10} {'MRR':>8}")
+        for mode in RETRIEVAL_MODES:
+            metrics = mode_reports[mode]["retrieval"]
+            assert isinstance(metrics, dict)
+            print(
+                f"  {mode:<24} {metrics['recall_at_5']:>9} "
+                f"{metrics['recall_at_10']:>10} {metrics['mrr']:>8}"
+            )
+        print(f"\nОтчёт сохранён: {ABLATION_RESULTS_JSON}")
+        print(
+            "\nВАЖНО: автоматические метрики не являются подтверждением регуляторной "
+            "корректности. Требуется экспертная валидация."
+        )
+        return 0
+
+    mode = args.retrieval_mode
+    mode_report = mode_reports[mode]
+    metrics = mode_report["retrieval"]
+    outcomes_report = mode_report["per_question"]
 
     report: dict[str, object] = {
         "generated_at": datetime.now().isoformat(timespec="seconds"),
+        "retrieval_mode": mode,
         "retrieval": metrics,
-        "per_question": [
-            {
-                "question_id": o.question_id,
-                "category": o.category,
-                "first_hit_rank": o.first_hit_rank,
-                "hits": o.ranks,
-                "retrieved_documents": o.retrieved_documents[:5],
-            }
-            for o in outcomes
-        ],
-        "disclaimer": (
-            "Ожидаемые документы размечены автоматически "
-            "(needs_expert_validation = true). Метрики отражают поведение поиска, "
-            "а не корректность регуляторного вывода. Требуется экспертная оценка."
-        ),
+        "per_question": outcomes_report,
+        "disclaimer": disclaimer,
     }
 
-    print("\n=== RETRIEVAL METRICS ===")
-    print(f"  Вопросов:              {metrics['questions']}")
-    print(f"  Recall@5:              {metrics['recall_at_5']}")
-    print(f"  Recall@10:             {metrics['recall_at_10']}")
-    print(f"  MRR:                   {metrics['mrr']}")
-    print(f"  Без релевантных:       {metrics['questions_with_no_hit']}")
-    print("  Распределение источников по уровням:")
-    for tier, count in sorted(metrics["source_authority_distribution"].items()):  # type: ignore[union-attr]
-        print(f"    {tier:<10} {count}")
-
-    by_category: dict[str, list[QuestionOutcome]] = {}
-    for outcome in outcomes:
-        by_category.setdefault(outcome.category, []).append(outcome)
-    print("\n  Recall@10 по категориям:")
-    for category, group in sorted(by_category.items()):
-        hits = sum(1 for o in group if o.first_hit_rank and o.first_hit_rank <= 10)
-        print(f"    {category:<28} {hits}/{len(group)}")
-
     if args.with_answers:
-        pipeline = RegulatoryPipeline(retriever=retriever)
+        assert active_retriever is not None
+        pipeline = RegulatoryPipeline(retriever=active_retriever)
         if pipeline.llm is None:
             print("\nLLM не настроен — оценка ответов пропущена.")
         else:
@@ -297,6 +391,8 @@ def main(argv: list[str] | None = None) -> int:
         "\nВАЖНО: автоматические метрики не являются подтверждением регуляторной "
         "корректности. Требуется экспертная валидация."
     )
+    if active_retriever is not None:
+        active_retriever.searcher.close()
     return 0
 
 

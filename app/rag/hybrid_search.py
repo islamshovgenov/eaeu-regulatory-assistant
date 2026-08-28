@@ -62,9 +62,16 @@ class HybridSearcher:
         repository: Repository | None = None,
         vector_index: VectorIndex | None = None,
         bm25_index: BM25Index | None = None,
+        *,
+        enable_vector: bool = True,
+        enable_bm25: bool = True,
     ) -> None:
+        if not enable_vector and not enable_bm25:
+            raise ValueError("At least one retrieval channel must be enabled")
         self.settings = settings or get_settings()
         self.repository = repository or Repository()
+        self.enable_vector = enable_vector
+        self.enable_bm25 = enable_bm25
         self._vector_index = vector_index
         self._bm25_index = bm25_index
         self._bm25_loaded = bm25_index is not None
@@ -73,6 +80,8 @@ class HybridSearcher:
     # -- lazy resources -----------------------------------------------------
     @property
     def vector_index(self) -> VectorIndex | None:
+        if not self.enable_vector:
+            return None
         if self._vector_index is None:
             try:
                 self._vector_index = VectorIndex(self.settings)
@@ -83,6 +92,8 @@ class HybridSearcher:
 
     @property
     def bm25_index(self) -> BM25Index | None:
+        if not self.enable_bm25:
+            return None
         if not self._bm25_loaded:
             self._bm25_index = BM25Index.load()
             self._bm25_loaded = True
@@ -212,3 +223,8 @@ class HybridSearcher:
             "documents": self.repository.count_documents(),
             "chunks": self.repository.count_chunks(),
         }
+
+    def close(self) -> None:
+        """Release the local Qdrant lock, if this searcher opened it."""
+        if self._vector_index is not None:
+            self._vector_index.close()

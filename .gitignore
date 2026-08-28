@@ -52,3 +52,4 @@ qdrant_storage/
 .DS_Store
 Thumbs.db
 desktop.ini
+*.pptx.inspect.ndjson
