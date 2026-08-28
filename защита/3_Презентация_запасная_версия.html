@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EAEU Regulatory Assistant — защита проекта</title>
+<style>
+  :root {
+    --ink: #0f172a;
+    --ink-soft: #475569;
+    --muted: #94a3b8;
+    --bg: #f8fafc;
+    --card: #ffffff;
+    --line: #e2e8f0;
+    --accent: #0d9488;
+    --accent-soft: #ccfbf1;
+    --warn: #b45309;
+    --warn-soft: #fef3c7;
+    --danger: #b91c1c;
+    --danger-soft: #fee2e2;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.55 -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .deck { height: 100vh; display: flex; align-items: center; justify-content: center; }
+  .slide {
+    display: none;
+    width: min(1180px, 94vw);
+    height: min(664px, 88vh);
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    box-shadow: 0 18px 50px rgba(15, 23, 42, .10);
+    padding: 34px 50px 30px;
+    overflow: hidden;
+    position: relative;
+    flex-direction: column;
+  }
+  .slide.active { display: flex; }
+
+  .eyebrow {
+    font-size: .78rem; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--accent); font-weight: 700; margin-bottom: 14px;
+  }
+  h1 { font-size: 2.7rem; line-height: 1.1; margin: 0 0 12px; letter-spacing: -.02em; }
+  h2 { font-size: 1.85rem; line-height: 1.15; margin: 0 0 16px; letter-spacing: -.02em; }
+  .lead { font-size: 1.15rem; color: var(--ink-soft); max-width: 62ch; }
+  p { margin: 0 0 10px; }
+  ul { margin: 0; padding-left: 22px; }
+  li { margin-bottom: 8px; font-size: 1.01rem; }
+  li::marker { color: var(--accent); }
+  strong { color: var(--ink); }
+  .sub { color: var(--ink-soft); }
+
+  .body { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: center; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; align-items: start; }
+  .cols-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+
+  .stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: 4px 0 20px; }
+  .stat { background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  .stat .n { font-size: 1.95rem; font-weight: 750; letter-spacing: -.03em; line-height: 1; }
+  .stat .l { font-size: .8rem; color: var(--ink-soft); margin-top: 6px; }
+
+  .card {
+    background: var(--bg); border: 1px solid var(--line);
+    border-radius: 12px; padding: 15px 18px;
+  }
+  .card h3 { margin: 0 0 7px; font-size: 1rem; }
+  .card p { font-size: .92rem; color: var(--ink-soft); margin: 0; }
+
+  .flow { display: flex; flex-direction: column; gap: 7px; }
+  .step {
+    display: flex; align-items: center; gap: 14px;
+    background: var(--bg); border: 1px solid var(--line);
+    border-left: 4px solid var(--accent);
+    border-radius: 10px; padding: 9px 16px; font-size: .96rem;
+  }
+  .step .k { font-weight: 700; color: var(--accent); min-width: 26px; }
+  .step.hl { background: var(--accent-soft); border-color: var(--accent); }
+
+  .quote {
+    background: var(--bg); border: 1px solid var(--line); border-left: 4px solid var(--muted);
+    border-radius: 10px; padding: 13px 17px; font-size: .95rem; color: var(--ink-soft);
+  }
+  .quote b { color: var(--ink); }
+  .tag {
+    display: inline-block; font-size: .74rem; font-weight: 700; letter-spacing: .06em;
+    text-transform: uppercase; padding: 3px 9px; border-radius: 999px; margin-bottom: 10px;
+  }
+  .tag.ok { background: var(--accent-soft); color: #0f766e; }
+  .tag.no { background: var(--danger-soft); color: var(--danger); }
+  .tag.mid { background: var(--warn-soft); color: var(--warn); }
+
+  table { width: 100%; border-collapse: collapse; font-size: .95rem; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  th { font-size: .8rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  td.num { font-variant-numeric: tabular-nums; font-weight: 650; }
+  .up { color: var(--accent); font-weight: 700; }
+  .down { color: var(--muted); }
+
+  code {
+    font-family: ui-monospace, "SF Mono", Consolas, monospace;
+    font-size: .93em; background: var(--bg); border: 1px solid var(--line);
+    border-radius: 5px; padding: 1px 6px;
+  }
+
+  .foot {
+    position: absolute; left: 50px; right: 50px; bottom: 16px;
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: .8rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 12px;
+  }
+
+  .hint {
+    position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%);
+    font-size: .78rem; color: var(--muted); background: rgba(255,255,255,.9);
+    border: 1px solid var(--line); border-radius: 999px; padding: 5px 14px;
+  }
+
+  @media print {
+    @page { size: A4 landscape; margin: 8mm; }
+    body { background: #fff; }
+    .deck { display: block; height: auto; }
+    .slide {
+      display: flex !important; width: 100%; height: 190mm;
+      page-break-after: always; box-shadow: none; margin-bottom: 0;
+      border-radius: 0; border: none;
+    }
+    .hint { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="deck">
+
+<!-- 1 -->
+<section class="slide active">
+  <div class="body">
+    <div class="eyebrow">Финальный проект · RAG-система</div>
+    <h1>EAEU Regulatory&nbsp;Assistant</h1>
+    <p class="lead">Ассистент регуляторной поддержки: отвечает на вопросы о регистрации
+    лекарственных препаратов в ЕАЭС только по официальным документам — с точной
+    ссылкой на пункт и страницу.</p>
+    <div style="margin-top:30px" class="cols">
+      <div class="card">
+        <h3>Откуда задача</h3>
+        <p>Работаю с клиническими исследованиями. Половина подготовки — сверка
+        с нормативкой: нужна ли биоэквивалентность, какой референтный препарат,
+        можно ли расширить границы Cmax.</p>
+      </div>
+      <div class="card">
+        <h3>Цена вопроса</h3>
+        <p>Поиск нужного пункта вручную — от получаса до дня. Неверно понятое
+        требование — переделанное исследование и потерянные месяцы.</p>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>Ислам Шовгенов</span><span>1 / 10</span></div>
+</section>
+
+<!-- 2 -->
+<section class="slide">
+  <div class="body">
+    <div class="eyebrow">Постановка задачи</div>
+    <h2>Почему нельзя просто спросить ChatGPT</h2>
+    <div class="cols">
+      <div>
+        <div class="tag no">Обычная языковая модель</div>
+        <div class="quote">«Согласно <b>пункту 47 Решения Совета ЕЭК № 85</b>
+        требуется…»<br><br>
+        Звучит правдоподобно. <b>Такого пункта не существует.</b></div>
+        <p style="margin-top:12px" class="sub">Выдуманная ссылка хуже отсутствия
+        ответа: отсутствие заставит проверить, ссылка — нет.</p>
+      </div>
+      <div>
+        <div class="tag ok">Требование к системе</div>
+        <ul>
+          <li>Каждое утверждение — со ссылкой на <strong>реальный фрагмент</strong></li>
+          <li>Точность до <strong>пункта и страницы</strong></li>
+          <li>Нет основания — <strong>честный отказ</strong></li>
+          <li>Видно, <strong>насколько система себе доверяет</strong></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>EAEU Regulatory Assistant</span><span>2 / 10</span></div>
+</section>
+
+<!-- 3 -->
+<section class="slide">
+  <div class="body">
+    <div class="eyebrow">Что построено</div>
+    <h2>Корпус нормативной базы ЕАЭС</h2>
+    <div class="stat-row">
+      <div class="stat"><div class="n">755</div><div class="l">документов, собраны автоматически</div></div>
+      <div class="stat"><div class="n">11 058</div><div class="l">фрагментов со структурой</div></div>
+      <div class="stat"><div class="n">6,07 млн</div><div class="l">токенов текста</div></div>
+      <div class="stat"><div class="n">143</div><div class="l">автотеста</div></div>
+    </div>
+    <div class="cols">
+      <div>
+        <h3 style="margin:0 0 8px;font-size:1rem">Иерархия источников</h3>
+        <table>
+          <tr><td><strong>TIER 1</strong> · 194</td><td class="sub">обязательные акты — решения Совета и Коллегии</td></tr>
+          <tr><td><strong>TIER 2</strong> · 86</td><td class="sub">руководства Коллегии ЕЭК</td></tr>
+          <tr><td><strong>TIER 3</strong> · 467</td><td class="sub">рекомендации Экспертного комитета по МНН</td></tr>
+          <tr><td><strong>TIER 4</strong> · 8</td><td class="sub">ICH / EMA / WHO — справочно, ≤ 25 %</td></tr>
+        </table>
+      </div>
+      <div class="card">
+        <h3>Структура сохранена</h3>
+        <p>Не «где-то в файле», а: приложение № 1 · раздел III · пункт 106 ·
+        страницы 52–53. Ссылка выглядит так же, как в самом нормативном
+        документе — её можно проверить за секунды.</p>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>EAEU Regulatory Assistant</span><span>3 / 10</span></div>
+</section>
+
+<!-- 4 -->
+<section class="slide">
+  <div class="body">
+    <div class="eyebrow">Архитектура</div>
+    <h2>Гибридный поиск</h2>
+    <div class="cols">
+      <div class="card">
+        <h3>Векторный поиск — смысл</h3>
+        <p>«Дженерик» → найдёт «воспроизведённый лекарственный препарат».
+        Слаб на точных обозначениях.</p>
+      </div>
+      <div class="card">
+        <h3>BM25 — буква</h3>
+        <p>Находит <code>Cmax</code>, <code>80,00–125,00 %</code>,
+        <code>Решение № 85</code>. Не понимает синонимов.</p>
+      </div>
+    </div>
+    <div class="flow" style="margin-top:22px">
+      <div class="step"><span class="k">→</span> 40 кандидатов вектором <span class="sub">(multilingual-e5-base, Qdrant)</span> + 40 кандидатов BM25</div>
+      <div class="step"><span class="k">→</span> слияние рангов RRF · переранжирование · <strong>12 итоговых фрагментов</strong></div>
+      <div class="step"><span class="k">→</span> политика источников: обязательные акты ЕАЭС всегда в контексте, международные ≤ 25 %</div>
+    </div>
+  </div>
+  <div class="foot"><span>EAEU Regulatory Assistant</span><span>4 / 10</span></div>
+</section>
+
+<!-- 5 -->
+<section class="slide">
+  <div class="body">
+    <div class="eyebrow">Ключевое решение</div>
+    <h2>Модель не создаёт ссылки</h2>
+    <div class="flow">
+      <div class="step"><span class="k">1</span> Поиск вернул 12 фрагментов</div>
+      <div class="step hl"><span class="k">2</span> <strong>Код</strong> присваивает им номера [1]…[12] — <strong>до</strong> обращения к модели</div>
+      <div class="step"><span class="k">3</span> Модель получает фрагменты как <strong>данные</strong> и может указать только номер</div>
+      <div class="step"><span class="k">4</span> Валидатор удаляет номера, которых нет в реестре, и предупреждает пользователя</div>
+      <div class="step"><span class="k">5</span> Номера актов в тексте сверяются со списком документов корпуса</div>
+    </div>
+    <p style="margin-top:16px;font-size:1.06rem">Модель не пишет название документа, номер или дату —
+    только <strong>число, которое уже существует</strong>. Галлюцинация источника
+    не «маловероятна» — она <strong>архитектурно невозможна</strong>.</p>
+  </div>
+  <div class="foot"><span>EAEU Regulatory Assistant</span><span>5 / 10</span></div>
+</section>
+
+<!-- 6 -->
+<section class="slide">
+  <div class="body">
+    <div class="eyebrow">Ключевое решение</div>
+    <h2>Уверенность — число, которое можно оспорить</h2>
+    <div class="cols">
+      <div>
+        <p style="font-size:1.05rem">Уверенность <strong>не спрашивается у модели</strong>:
+        она одинаково уверена и когда права, и когда ошибается.</p>
+        <p class="sub">Считается кодом по 9 наблюдаемым признакам. Штрафы: расхождения
+        источников, утратившие силу документы, нехватка данных. Нет ни одной
+        ссылки → принудительно LOW.</p>
+      </div>
+      <div class="quote">
+        <b>Уверенность: HIGH · 0.75</b><br><br>
+        Найдено источников: 2 &nbsp;<b>+0.20</b><br>
+        Обязательные акты ЕАЭС (TIER 1–2): 2 &nbsp;<b>+0.25</b><br>
+        Доля утверждений со ссылками: 100 % &nbsp;<b>+0.20</b><br>
+        Релевантность лучшего фрагмента: 1.00 &nbsp;<b>+0.10</b><br>
+        Редакция не подтверждена автоматически &nbsp;<b>—</b>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>EAEU Regulatory Assistant</span><span>6 / 10</span></div>
+</section>
+
+<!-- 7 -->
+<section class="slide">
+  <div class="body">
+    <div class="eyebrow">Демонстрация</div>
+    <h2>Что система реально отвечает</h2>
+    <div class="cols-3">
+      <div class="card">
+        <div class="tag ok">Точность</div>
+        <h3>Высоковариабельные, Cmax</h3>
+        <p>Границы до <strong>69,84–143,19 %</strong> при репликативном дизайне
+        и вариабельности &gt; 30 %. На AUC <strong>не распространяется</strong>.<br>
+        <span class="sub">Решение № 85, п. 104–107, с. 51–53</span></p>
+      </div>
+      <div class="card">
+        <div class="tag mid">Конкретное вещество</div>
+        <h3>Нимесулид 200 мг, дженерик</h3>
+        <p>Форма с модифицированным высвобождением — <strong>нерациональна</strong>.
+        Для обычной: референтный «Аулин», 2 периода, перекрёстный, натощак.<br>
+        <span class="sub">Рекомендации Экспертного комитета № 429, № 415</span></p>
+      </div>
+      <div class="card">
+        <div class="tag no">Отказ</div>
+        <h3>Элаголикс — нет в базе</h3>
+        <p>«Нормативное основание в базе <strong>не найдено</strong>».
+        Уверенность LOW · 0.00.<br>
+        <span class="sub">Отказ — правильный результат, за него специально боролись</span></p>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>EAEU Regulatory Assistant</span><span>7 / 10</span></div>
+</section>
+
+<!-- 8 -->
+<section class="slide">
+  <div class="body">
+    <div class="eyebrow">Инженерная история</div>
+    <h2>Сканы: как вернули три четверти документов</h2>
+    <div class="cols">
+      <div>
+        <p><strong>Проблема.</strong> 569 рекомендаций Экспертного комитета —
+        самая ценная часть корпуса — опубликованы как сканы без текстового слоя.
+        По названию они отлично находились, занимали место в контексте и давали
+        ноль содержания. Отсюда расплывчатые ответы.</p>
+        <p><strong>Решение.</strong> Tesseract, русская модель, 4 916 страниц,
+        8 процессов. Скрипт переиндексирует только их — минуты вместо часов.</p>
+      </div>
+      <div>
+        <table>
+          <tr><th>Показатель</th><th>До</th><th>После</th></tr>
+          <tr><td>Фрагментов</td><td class="num down">6 297</td><td class="num up">11 058</td></tr>
+          <tr><td>Recall@10</td><td class="num down">0,70</td><td class="num up">0,82</td></tr>
+          <tr><td>Recall@5</td><td class="num down">0,64</td><td class="num up">0,70</td></tr>
+          <tr><td>Вопросов без попадания</td><td class="num down">15</td><td class="num up">9</td></tr>
+          <tr><td>Документов без текста</td><td class="num down">569</td><td class="num up">0</td></tr>
+        </table>
+        <p class="sub" style="margin-top:10px">Распознано 569 из 569, ошибок — 0.</p>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>EAEU Regulatory Assistant</span><span>8 / 10</span></div>
+</section>
+
+<!-- 9 -->
+<section class="slide">
+  <div class="body">
+    <div class="eyebrow">Проверка</div>
+    <h2>Метрики и честные ограничения</h2>
+    <div class="stat-row">
+      <div class="stat"><div class="n">0,70</div><div class="l">Recall@5</div></div>
+      <div class="stat"><div class="n">0,82</div><div class="l">Recall@10</div></div>
+      <div class="stat"><div class="n">50</div><div class="l">вопросов, 14 тем</div></div>
+      <div class="stat"><div class="n">143</div><div class="l">теста проходят</div></div>
+    </div>
+    <ul>
+      <li>Метрики измеряют <strong>поиск, а не регуляторную корректность</strong>;
+      тестовый набор машинный и требует экспертной валидации</li>
+      <li>Модель-судья <strong>сознательно не используется</strong> — это была бы
+      проверка модели моделью</li>
+      <li>Для <strong>615 из 755</strong> документов редакция не подтверждена
+      автоматически — система сообщает об этом в ответе</li>
+      <li>Текст 569 документов получен OCR — возможны ошибки распознавания</li>
+      <li>Система <strong>вспомогательная</strong>: решение принимает эксперт —
+      написано в интерфейсе, а не в документации</li>
+    </ul>
+  </div>
+  <div class="foot"><span>EAEU Regulatory Assistant</span><span>9 / 10</span></div>
+</section>
+
+<!-- 10 -->
+<section class="slide">
+  <div class="body">
+    <div class="eyebrow">Итог</div>
+    <h2>Что получилось</h2>
+    <div class="cols-3" style="margin-bottom:26px">
+      <div class="card"><h3>Секунды вместо часов</h3><p>Ответ с пунктом и страницей официального документа.</p></div>
+      <div class="card"><h3>Проверяемость</h3><p>Дословный фрагмент источника — под каждым ответом.</p></div>
+      <div class="card"><h3>Честность</h3><p>Отказ без основания и объяснимая уверенность.</p></div>
+    </div>
+    <div class="quote" style="border-left-color:var(--accent);font-size:1.08rem">
+      Главный вывод: <b>надёжность RAG-системы обеспечивается не промптом,
+      а архитектурой.</b> Промпт можно обойти — невозможность написать
+      несуществующий номер обойти нельзя.
+    </div>
+    <p style="margin-top:18px;font-size:1.12rem"><strong>Спасибо. Готов к вопросам.</strong></p>
+  </div>
+  <div class="foot"><span>EAEU Regulatory Assistant</span><span>10 / 10</span></div>
+</section>
+
+</div>
+
+<div class="hint">← → или пробел — листать · <b>P</b> — печать в PDF</div>
+
+<script>
+  const slides = Array.from(document.querySelectorAll('.slide'));
+
+  // Auto-fit: a projector may be shorter than this laptop.  Rather than trust a
+  // hand-tuned layout, each slide is scaled down until its content fits.
+  function fit(slide) {
+    const body = slide.querySelector('.body');
+    body.style.transform = '';
+    const available = body.clientHeight;
+    const needed = body.scrollHeight;
+    if (needed > available + 2) {
+      const ratio = Math.max(0.62, available / needed);
+      body.style.transform = 'scale(' + ratio.toFixed(3) + ')';
+      body.style.transformOrigin = 'center center';
+    }
+  }
+  function fitAll() {
+    slides.forEach((slide) => {
+      const wasActive = slide.classList.contains('active');
+      slide.classList.add('active');
+      fit(slide);
+      if (!wasActive) slide.classList.remove('active');
+    });
+  }
+  window.addEventListener('resize', fitAll);
+  window.addEventListener('beforeprint', fitAll);
+  let index = 0;
+  function show(next) {
+    index = Math.max(0, Math.min(slides.length - 1, next));
+    slides.forEach((slide, i) => slide.classList.toggle('active', i === index));
+    location.hash = index + 1;
+  }
+  document.addEventListener('keydown', (event) => {
+    if (['ArrowRight', 'PageDown', ' ', 'Enter'].includes(event.key)) { event.preventDefault(); show(index + 1); }
+    else if (['ArrowLeft', 'PageUp', 'Backspace'].includes(event.key)) { event.preventDefault(); show(index - 1); }
+    else if (event.key === 'Home') show(0);
+    else if (event.key === 'End') show(slides.length - 1);
+    else if (event.key === 'p' || event.key === 'P') window.print();
+  });
+  document.addEventListener('click', (event) => {
+    if (event.target.closest('a')) return;
+    show(index + (event.clientX > window.innerWidth / 2 ? 1 : -1));
+  });
+  fitAll();
+  const start = parseInt(location.hash.slice(1), 10);
+  show(Number.isFinite(start) && start > 0 ? start - 1 : 0);
+</script>
+</body>
+</html>

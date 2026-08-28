@@ -1,0 +1,1 @@
+cd "C:\Users\Admin\Desktop\финальный проект вышка\eaeu_regulatory_assistant"; C:\Users\Admin\.venvs\eaeu\Scripts\Activate.ps1; streamlit run app\main.py

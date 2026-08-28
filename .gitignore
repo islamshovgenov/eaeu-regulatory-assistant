@@ -1,0 +1,54 @@
+# --- secrets ---------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+secrets.*
+
+# --- python ----------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# --- runtime data ----------------------------------------------------------
+logs/
+database/
+data/raw/**
+!data/raw/.gitkeep
+!data/raw/*/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+data/registry/http_cache.json
+data/registry/discovered.json
+
+# The document registry itself is small and auditable — keep it under version
+# control so the provenance of the corpus is reviewable without re-crawling.
+!data/registry/documents.csv
+!data/registry/sources.yaml
+
+# --- vector store runtime --------------------------------------------------
+qdrant_storage/
+*.pkl
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+
+# --- editors / OS ----------------------------------------------------------
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini

@@ -1,0 +1,39 @@
+# ---------------------------------------------------------------------------
+# EAEU Regulatory Assistant — runtime dependencies
+# Python >= 3.11 (tested on 3.12)
+# ---------------------------------------------------------------------------
+
+# --- core / config ---------------------------------------------------------
+pydantic>=2.7,<3
+pydantic-settings>=2.2,<3
+python-dotenv>=1.0
+PyYAML>=6.0
+
+# --- retrieval -------------------------------------------------------------
+qdrant-client>=1.9       # local mode + server mode
+rank-bm25>=0.2.2
+numpy>=1.26
+
+# --- embeddings (local provider) ------------------------------------------
+sentence-transformers>=3.0
+torch>=2.2
+
+# --- LLM providers (both optional at runtime, selected via LLM_PROVIDER) ---
+anthropic>=0.34
+openai>=1.40
+
+# --- UI --------------------------------------------------------------------
+streamlit>=1.36
+pandas>=2.2
+
+# --- tests -----------------------------------------------------------------
+pytest>=8.2
+
+# ---------------------------------------------------------------------------
+# Только для ПЕРЕСБОРКИ базы знаний (код в `_архив_сборки_базы/`).
+# Для запуска приложения не нужны — база уже собрана и лежит в database/.
+# Установить при необходимости:
+#     pip install requests urllib3 beautifulsoup4 lxml PyMuPDF python-docx
+# Плюс OCR сканов: pip install pytesseract pillow  + бинарь Tesseract
+# (путь к нему — в переменной TESSERACT_CMD).
+# ---------------------------------------------------------------------------

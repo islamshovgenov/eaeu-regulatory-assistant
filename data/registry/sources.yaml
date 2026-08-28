@@ -1,0 +1,128 @@
+# ---------------------------------------------------------------------------
+# Source registry — official pages monitored by the ingestion pipeline.
+#
+# Only publicly accessible official pages are listed.  Nothing here requires
+# authentication, CAPTCHA solving or a paywall bypass; `robots.txt` of every
+# host is honoured by ingestion/downloader.py.
+#
+# discovery_method:
+#   eec_acts_index  — HTML index page on eec.eaeunion.org that links to
+#                     document pages on docs.eaeunion.org; each document page
+#                     is then opened and its /upload/... attachments harvested.
+#   eec_file_index  — HTML index page that links to files directly.
+#   eaeu_doc_page   — a single docs.eaeunion.org document page.
+#   static_list     — explicit list of file URLs (`urls:`).
+#   manual          — page whose files cannot be harvested automatically;
+#                     recorded with download_status = manual_required.
+# ---------------------------------------------------------------------------
+
+version: 2
+updated: "2026-08-10"
+
+sources:
+  # ---------------------------------------------------------------- TIER 1/2
+  - name: eaeu_regulatory_acts
+    title: "Акты ЕЭК в сфере обращения лекарственных средств"
+    authority: EAEU
+    source_authority: EAEU
+    default_tier: TIER_1
+    base_url: "https://eec.eaeunion.org/comission/department/deptexreg/formirovanie-obshchikh-rynkov/akty-v-sfere-ls.php"
+    discovery_method: eec_acts_index
+    link_filter: "docs.eaeunion.org"
+    priority: 1
+    enabled: true
+    language: ru
+    notes: >-
+      Основная страница Департамента технического регулирования и аккредитации
+      ЕЭК со ссылками на решения Совета и Коллегии, распоряжения и рекомендации
+      в сфере обращения лекарственных средств, включая Решения № 78, 79, 81,
+      85, 87, 88, 89 и акты о внесении изменений.
+
+  # ------------------------------------------------------------------ TIER 3
+  - name: eaeu_expert_committee
+    title: "Рекомендации Экспертного комитета по лекарственным средствам ЕЭК"
+    authority: EAEU
+    source_authority: EAEU
+    default_tier: TIER_3
+    base_url: "https://eec.eaeunion.org/comission/department/deptexreg/formirovanie-obshchikh-rynkov/recommendations.php"
+    discovery_method: eec_file_index
+    link_filter: "\\.pdf$|\\.docx?$"
+    priority: 1
+    enabled: true
+    language: ru
+    document_type: expert_committee_recommendation
+    notes: >-
+      Рекомендации Экспертного комитета, в том числе по конкретным МНН
+      (выбор референтного препарата, особенности исследований
+      биоэквивалентности, допустимость биовейвера).
+
+  # ------------------------------------------------------------ TIER 1 extra
+  - name: eaeu_medical_devices_context
+    title: "Акты ЕЭК в сфере обращения медицинских изделий"
+    authority: EAEU
+    source_authority: EAEU
+    default_tier: TIER_1
+    base_url: "https://eec.eaeunion.org/comission/department/deptexreg/formirovanie-obshchikh-rynkov/akty-v-sfere-obrashcheniya-meditsinskikh-izdeliy.php"
+    discovery_method: eec_acts_index
+    link_filter: "docs.eaeunion.org"
+    priority: 5
+    enabled: false          # вне предметной области проекта; оставлено для полноты
+    language: ru
+
+  # ---------------------------------------------------------------- TIER 4/5
+  - name: ich_guidelines
+    title: "ICH Efficacy / Multidisciplinary guidelines"
+    authority: "International Council for Harmonisation"
+    source_authority: ICH
+    default_tier: TIER_4
+    base_url: "https://database.ich.org/sites/default/files/"
+    discovery_method: static_list
+    priority: 4
+    enabled: true
+    language: en
+    document_type: supplementary
+    urls:
+      - "https://database.ich.org/sites/default/files/M9_Guideline_Step4_2019_1116.pdf"
+      - "https://database.ich.org/sites/default/files/E6%28R3%29_Step4_FinalGuideline_2025_0106.pdf"
+      - "https://database.ich.org/sites/default/files/M3_R2__Guideline.pdf"
+      - "https://database.ich.org/sites/default/files/Q1A%28R2%29%20Guideline.pdf"
+      - "https://database.ich.org/sites/default/files/S9_Guideline.pdf"
+    notes: >-
+      SUPPLEMENTARY. Никогда не выдаётся как обязательное требование ЕАЭС.
+      ICH M9 — BCS-based biowaiver; ICH E6(R3) — GCP; ICH M3(R2) — доклиническая
+      программа; ICH Q1A(R2) — стабильность; ICH S9 — противоопухолевые ЛП.
+
+  - name: ema_guidelines
+    title: "EMA scientific guidelines (bioequivalence / biosimilars)"
+    authority: "European Medicines Agency"
+    source_authority: EMA
+    default_tier: TIER_4
+    base_url: "https://www.ema.europa.eu/"
+    discovery_method: static_list
+    priority: 4
+    enabled: true
+    language: en
+    document_type: supplementary
+    urls:
+      - "https://www.ema.europa.eu/en/documents/scientific-guideline/guideline-investigation-bioequivalence-rev1_en.pdf"
+      - "https://www.ema.europa.eu/en/documents/scientific-guideline/guideline-similar-biological-medicinal-products-rev1_en.pdf"
+    notes: >-
+      SUPPLEMENTARY. Служат научным контекстом; не заменяют требования ЕАЭС.
+
+  - name: who_guidelines
+    title: "WHO Technical Report Series — multisource (generic) products"
+    authority: "World Health Organization"
+    source_authority: WHO
+    default_tier: TIER_4
+    base_url: "https://www.who.int/"
+    discovery_method: manual
+    priority: 5
+    enabled: true
+    language: en
+    document_type: supplementary
+    urls:
+      - "https://www.who.int/publications/m/item/trs1003-annex6"
+    notes: >-
+      Страницы WHO отдают файлы через редиректы на CDN, часть из которых
+      недоступна автоматически. Записывается в реестр как manual_required —
+      файл при необходимости скачивается вручную в data/raw/who/.

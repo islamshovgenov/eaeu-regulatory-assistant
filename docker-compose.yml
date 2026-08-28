@@ -1,0 +1,36 @@
+# ---------------------------------------------------------------------------
+# Qdrant for the "server" vector-store mode.
+#
+# Docker is NOT required for local development: with QDRANT_MODE=local the
+# application runs an embedded Qdrant that stores its files under ./database.
+# Use this compose file when you want a standalone Qdrant with its dashboard.
+#
+#   docker compose up -d qdrant
+#   # then in .env:  QDRANT_MODE=server
+#   python _архив_сборки_базы/scripts/rebuild_index.py
+#
+# Dashboard: http://localhost:6333/dashboard
+# ---------------------------------------------------------------------------
+
+services:
+  qdrant:
+    image: qdrant/qdrant:v1.12.4
+    container_name: eaeu-qdrant
+    restart: unless-stopped
+    ports:
+      - "6333:6333"   # REST API + dashboard
+      - "6334:6334"   # gRPC
+    volumes:
+      - qdrant_storage:/qdrant/storage
+    environment:
+      QDRANT__SERVICE__HTTP_PORT: 6333
+      QDRANT__SERVICE__GRPC_PORT: 6334
+      QDRANT__LOG_LEVEL: INFO
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c ':> /dev/tcp/127.0.0.1/6333' || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  qdrant_storage:
